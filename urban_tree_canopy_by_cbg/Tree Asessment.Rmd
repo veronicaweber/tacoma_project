@@ -1,0 +1,38 @@
+---
+title: "Percent Evergreen and Deciduous"
+author: "Veronica Weber"
+date: "10/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# load libraries
+library(tidyverse)
+library(janitor)
+
+# Import the census block and tree canopy coverage dataset
+census_trees <- read_csv("Tacoma_WA_UTC_Results_tidy.csv") %>% 
+  clean_names() %>% 
+
+# PlanIT Geo conducted Urban Tree Canopy assessment reports for 11 cities within King County - taking the average percent of total deciduous and evergreen across all 11 cities = %deciduous is 50.63 % and % evergreen is 49.27 %. 
+
+# Apply this number to the amount of total acres by census block
+  mutate(deciduous_acres_by_cb = utc_acres*tacoma_percent_deciduous) %>% 
+  mutate(evergreen_acres_by_cb = utc_acres*tacoma_percent_evergreen) 
+```
+
+
+```{r}
+# Next we need to add in the leaf area index, I'll use the average based on previous Nowak studies and also used as the base amount in i-Tree suite
+lai_added <- census_trees %>% 
+mutate(avg_LAI = 4.9)
+
+
+
+```
+
+
