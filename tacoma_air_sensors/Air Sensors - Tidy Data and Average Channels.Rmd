@@ -1,0 +1,825 @@
+---
+title: "air sensors average"
+author: "Veronica Weber"
+date: "11/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+#upload packages
+
+library(tidyr)
+library(janitor)
+library(tidyverse)
+```
+
+```{r}
+#### Lexington Sensor ######
+
+### ---- Channel A Tidying ------
+# import lexington sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+lexington_channel_a_full <- read_csv("raw_data/north_lexington_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+  lexington_channel_a_pm2.5 <- lexington_channel_a_full %>% 
+  mutate(lexington_channel_a = "lexington_channel_a") %>% 
+  select(lexington_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  lexington_channel_a_temp_humidity <- lexington_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+# import Lexington sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+lexington_channel_b_full <- read_csv("raw_data/north_lexington_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+  lexington_channel_b_pm2.5 <- lexington_channel_b_full %>% 
+  mutate(lexington_channel_b = "lexington_channel_b") %>% 
+  select(lexington_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  lexington_channel_b_pressure <- lexington_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+  
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+lexington_a_and_b <- full_join(lexington_channel_a_pm2.5, 
+                               lexington_channel_b_pm2.5,
+                               by = c("date_time"))
+
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+lexington_channels_merge <- lexington_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+lexington_pm2.5_avg <- lexington_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(lexington_pm2.5_avg, lexington_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a new column
+lexington_sensor_final <- full_join(temp_humidity, lexington_channel_b_pressure) %>% 
+  mutate(sensor_name = "lexington") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+
+```
+
+```{r}
+#### PSU Star Lab 6th and Baker Sensor ######
+### Note, this sensor is missing data from 10/15/2019 - 12/31/2019 (came back online in 10/11/2020)
+
+### ---- Channel A Tidying ------
+
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_6th_baker_channel_a_full <- read_csv("raw_data/psu_6th_baker_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+  psu_6th_baker_channel_a_pm2.5 <- psu_6th_baker_channel_a_full %>% 
+  mutate(psu_6th_baker_channel_a = "psu_6th_baker_channel_a") %>% 
+  select(psu_6th_baker_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_6th_baker_channel_a_temp_humidity <- psu_6th_baker_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_6th_baker_channel_b_full <- read_csv("raw_data/psu_6th_baker_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+ psu_6th_baker_channel_b_pm2.5 <- psu_6th_baker_channel_b_full %>% 
+  mutate(psu_6th_baker_channel_b = "psu_6th_baker_channel_b") %>% 
+  select(psu_6th_baker_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_6th_baker_channel_b_pressure <- psu_6th_baker_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+  
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_6th_baker_a_and_b <- full_join(psu_6th_baker_channel_a_pm2.5, 
+                              psu_6th_baker_channel_b_pm2.5,
+                               by = c("date_time"))
+
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_6th_baker_channels_merge <- psu_6th_baker_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_6th_baker_pm2.5_avg <- psu_6th_baker_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_6th_baker_pm2.5_avg, psu_6th_baker_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a new column
+psu_6th_baker_sensor_final <- full_join(temp_humidity, psu_6th_baker_channel_b_pressure) %>% 
+  mutate(sensor_name = "psu_6th_baker") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### PSU Star Lab Baltimore Park Sensor ######
+### Note, the PSU Star Lab Baltimore Park is missing data from 09/04/2019 (16:00) - 12/31/2019, the sensor went back online on 05/01/2020
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_baltimore_channel_a_full <- read_csv("raw_data/psu_baltimore_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+ psu_baltimore_channel_a_pm2.5 <- psu_baltimore_channel_a_full %>% 
+  mutate(psu_baltimore_channel_a = "psu_baltimore_channel_a") %>% 
+  select(psu_baltimore_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_baltimore_channel_a_temp_humidity <- psu_baltimore_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_baltimore_channel_b_full <- read_csv("raw_data/psu_baltimore_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+psu_baltimore_channel_b_pm2.5 <- psu_baltimore_channel_b_full %>% 
+  mutate(psu_baltimore_channel_b = "psu_baltimore_channel_b") %>% 
+  select(psu_baltimore_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_baltimore_channel_b_pressure <- psu_baltimore_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_baltimore_a_and_b <- full_join(psu_baltimore_channel_a_pm2.5, 
+                               psu_baltimore_channel_b_pm2.5,
+                               by = c("date_time"))
+
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_baltimore_channels_merge <- psu_baltimore_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_baltimore_pm2.5_avg <- psu_baltimore_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_baltimore_pm2.5_avg, psu_baltimore_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a new column
+psu_baltimore_sensor_final <- full_join(temp_humidity, psu_baltimore_channel_b_pressure) %>%  mutate(sensor_name = "psu_baltimore") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### PSU Star Lab Central Tacoma Sensor ######
+
+### Note, the sensor is missing data from 01/01/2019 - 09/11/2019 (15:00) - might not be worth using it?
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_central_tacoma_channel_a_full <- read_csv("raw_data/psu_central_tacoma_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+ psu_central_tacoma_channel_a_pm2.5 <- psu_central_tacoma_channel_a_full %>% 
+  mutate(psu_central_tacoma_channel_a = "psu_central_tacoma_channel_a") %>% 
+  select(psu_central_tacoma_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_central_tacoma_channel_a_temp_humidity <- psu_central_tacoma_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_central_tacoma_channel_b_full <- read_csv("raw_data/psu_central_tacoma_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+psu_central_tacoma_channel_b_pm2.5 <- psu_central_tacoma_channel_b_full %>% 
+  mutate(psu_central_tacoma_channel_b = "psu_central_tacoma_channel_b") %>% 
+  select(psu_central_tacoma_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_central_tacoma_channel_b_pressure <- psu_central_tacoma_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_central_tacoma_a_and_b <- full_join(psu_central_tacoma_channel_a_pm2.5, 
+                               psu_central_tacoma_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_central_tacoma_channels_merge <- psu_central_tacoma_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_central_tacoma_pm2.5_avg <- psu_central_tacoma_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_central_tacoma_pm2.5_avg, psu_central_tacoma_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b
+psu_central_tacoma_sensor <- full_join(temp_humidity, psu_central_tacoma_channel_b_pressure)
+
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates, also add sensor name to a new column 
+psu_central_tacoma_sensor_final <- psu_central_tacoma_sensor %>% 
+distinct(date_time, .keep_all = TRUE) %>% 
+    mutate(sensor_name = "psu_central_tacoma") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+```
+
+
+```{r}
+#### PSU Star Lab South Tacoma Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_south_tacoma_channel_a_full <- read_csv("raw_data/psu_south_tacoma_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+ psu_south_tacoma_channel_a_pm2.5 <- psu_south_tacoma_channel_a_full %>% 
+  mutate(psu_south_tacoma_channel_a = "psu_south_tacoma_channel_a") %>% 
+  select(psu_south_tacoma_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_south_tacoma_channel_a_temp_humidity <- psu_south_tacoma_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_south_tacoma_channel_b_full <- read_csv("raw_data/psu_south_tacoma_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+psu_south_tacoma_channel_b_pm2.5 <- psu_south_tacoma_channel_b_full %>% 
+  mutate(psu_south_tacoma_channel_b = "psu_south_tacoma_channel_b") %>% 
+  select(psu_south_tacoma_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_south_tacoma_channel_b_pressure <- psu_south_tacoma_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_south_tacoma_a_and_b <- full_join(psu_south_tacoma_channel_a_pm2.5, 
+                               psu_south_tacoma_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_south_tacoma_channels_merge <- psu_south_tacoma_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_south_tacoma_pm2.5_avg <- psu_south_tacoma_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_south_tacoma_pm2.5_avg, psu_south_tacoma_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a column
+psu_south_tacoma_sensor_final <- full_join(temp_humidity, psu_south_tacoma_channel_b_pressure) %>% 
+  mutate(sensor_name = "psu_south_tacoma") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### PSU Star Lab Titlow Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_titlow_channel_a_full <- read_csv("raw_data/psu_titlow_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+ psu_titlow_channel_a_pm2.5 <- psu_titlow_channel_a_full %>% 
+  mutate(psu_titlow_channel_a = "psu_titlow_channel_a") %>% 
+  select(psu_titlow_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_titlow_channel_a_temp_humidity <- psu_titlow_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_titlow_channel_b_full <- read_csv("raw_data/psu_titlow_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+psu_titlow_channel_b_pm2.5 <- psu_titlow_channel_b_full %>% 
+  mutate(psu_titlow_channel_b = "psu_titlow_channel_b") %>% 
+  select(psu_titlow_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_titlow_channel_b_pressure <- psu_titlow_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_titlow_a_and_b <- full_join(psu_titlow_channel_a_pm2.5, 
+                               psu_titlow_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_titlow_channels_merge <- psu_titlow_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_titlow_pm2.5_avg <- psu_titlow_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_titlow_pm2.5_avg, psu_titlow_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add csensor name to a new column
+psu_titlow_sensor_final <- full_join(temp_humidity, psu_titlow_channel_b_pressure) %>% 
+  mutate(sensor_name = "psu_titlow") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+```
+
+
+```{r}
+#### PSU Star Lab Jefferson Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+psu_jefferson_channel_a_full <- read_csv("raw_data/psu_jefferson_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+ psu_jefferson_channel_a_pm2.5 <- psu_jefferson_channel_a_full %>% 
+  mutate(psu_jefferson_channel_a = "psu_jefferson_channel_a") %>% 
+  select(psu_jefferson_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_jefferson_channel_a_temp_humidity <- psu_jefferson_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+psu_jefferson_channel_b_full <- read_csv("raw_data/psu_jefferson_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+psu_jefferson_channel_b_pm2.5 <- psu_jefferson_channel_b_full %>% 
+  mutate(psu_jefferson_channel_b = "psu_jefferson_channel_b") %>% 
+  select(psu_jefferson_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  psu_jefferson_channel_b_pressure <- psu_jefferson_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+psu_jefferson_a_and_b <- full_join(psu_jefferson_channel_a_pm2.5, 
+                               psu_jefferson_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+psu_jefferson_channels_merge <- psu_jefferson_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+psu_jefferson_pm2.5_avg <- psu_jefferson_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(psu_jefferson_pm2.5_avg, psu_jefferson_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name into a new column
+psu_jefferson_sensor_final <- full_join(temp_humidity, psu_jefferson_channel_b_pressure) %>% 
+  mutate(sensor_name = "psu_jefferson") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### Pt. Woodworth Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+pt_woodworth_channel_a_full <- read_csv("raw_data/pt_woodworth_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+pt_woodworth_channel_a_pm2.5 <- pt_woodworth_channel_a_full %>% 
+  mutate(pt_woodworth_channel_a = "pt_woodworth_channel_a") %>% 
+  select(pt_woodworth_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+ pt_woodworth_channel_a_temp_humidity <- pt_woodworth_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+pt_woodworth_channel_b_full <- read_csv("raw_data/pt_woodworth_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+pt_woodworth_channel_b_pm2.5 <- pt_woodworth_channel_b_full %>% 
+  mutate(pt_woodworth_channel_b = "pt_woodworth_channel_b") %>% 
+  select(pt_woodworth_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  pt_woodworth_channel_b_pressure <- pt_woodworth_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+pt_woodworth_a_and_b <- full_join(pt_woodworth_channel_a_pm2.5, 
+                               pt_woodworth_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+pt_woodworth_channels_merge <- pt_woodworth_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+pt_woodworth_pm2.5_avg <- pt_woodworth_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(pt_woodworth_pm2.5_avg, pt_woodworth_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a new column
+pt_woodworth_sensor_final <- full_join(temp_humidity, pt_woodworth_channel_b_pressure) %>% 
+  mutate(sensor_name = "pt_woodworth") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### Tacoma Alexander Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+tacoma_alexander_channel_a_full <- read_csv("raw_data/tacoma_alexander_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+tacoma_alexander_channel_a_pm2.5 <- tacoma_alexander_channel_a_full %>% 
+  mutate(tacoma_alexander_channel_a = "tacoma_alexander_channel_a") %>% 
+  select(tacoma_alexander_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+tacoma_alexander_channel_a_temp_humidity <- tacoma_alexander_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+tacoma_alexander_channel_b_full <- read_csv("raw_data/tacoma_alexander_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+tacoma_alexander_channel_b_pm2.5 <- tacoma_alexander_channel_b_full %>% 
+  mutate(tacoma_alexander_channel_b = "tacoma_alexander_channel_b") %>% 
+  select(tacoma_alexander_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  tacoma_alexander_channel_b_pressure <- tacoma_alexander_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+tacoma_alexander_a_and_b <- full_join(tacoma_alexander_channel_a_pm2.5, 
+                               tacoma_alexander_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+tacoma_alexander_channels_merge <- tacoma_alexander_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+tacoma_alexander_pm2.5_avg <- tacoma_alexander_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(tacoma_alexander_pm2.5_avg, tacoma_alexander_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a column in order to identify it 
+tacoma_alexander_sensor_final <- full_join(temp_humidity, tacoma_alexander_channel_b_pressure) %>% 
+    mutate(sensor_name = "tacoma_alexander") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+#### Pointe Woodworth Sensor ######
+
+### ---- Channel A Tidying ------
+# import sensor a and tidy data, selecting only the date/time, pm 2.5 concentrations, temp (fahrenheit) and humidity (percent)
+pointe_woodworth_channel_a_full <- read_csv("raw_data/pointe_woodworth_a.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "temperature" = temperature_f,
+         "humidity" = humidity_percent) 
+
+# create new data frame just isolating the variables I'm only interested in averaging (PM2.5) and add a new column to designate which sensor 
+pointe_woodworth_channel_a_pm2.5 <- pointe_woodworth_channel_a_full %>% 
+  mutate(pointe_woodworth_channel_a = "pointe_woodworth_channel_a") %>% 
+  select(pointe_woodworth_channel_a,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+pointe_woodworth_channel_a_temp_humidity <- pointe_woodworth_channel_a_full %>% 
+    select(date_time,
+           temperature,
+           humidity)
+
+# ------- Channel B Tidying ------
+  
+# import sensor channel B - sensor b only contains PM2.5 concentrations and pressure
+# Tidy data as done prior in channel a add a new column to designate which sensor 
+pointe_woodworth_channel_b_full <- read_csv("raw_data/pointe_woodworth_b.csv") %>% 
+ clean_names() %>% 
+  rename("date_time" = created_at,
+         "pm_2.5" = pm2_5_atm_ug_m3,
+         "pressure" = pressure_hpa) 
+
+# create new data frame to isolate PM 2.5 variable 
+pointe_woodworth_channel_b_pm2.5 <- pointe_woodworth_channel_b_full %>% 
+  mutate(pointe_woodworth_channel_b = "pointe_woodworth_channel_b") %>% 
+  select(pointe_woodworth_channel_b,
+         date_time,
+         pm_2.5)
+  
+# create new data frame with just the temperature and humidity 
+  pointe_woodworth_channel_b_pressure <- pointe_woodworth_channel_b_full %>% 
+    select(date_time,
+           pressure)
+  
+#------ Averaging the two channel data ---------
+# In order to find average of PM2.5 I need to combine the 2 PM2.5 data frames,next step is to merge the 2 data frames together
+pointe_woodworth_a_and_b <- full_join(pointe_woodworth_channel_a_pm2.5, 
+                               pointe_woodworth_channel_b_pm2.5,
+                               by = "date_time") 
+  
+# for some reason there is duplicate data - where channels' pm2.5 data is repeated twice, use base code distinct to remove the duplicates
+  
+# use pivot longer in order to consolidate the PM2.5 readings of each channel by the date/time
+pointe_woodworth_channels_merge <- pointe_woodworth_a_and_b %>% 
+  rename(c("channel_a_pm2.5" = pm_2.5.x,
+           "channel_b_pm2.5" = pm_2.5.y)) %>% 
+  pivot_longer(c('channel_a_pm2.5', 'channel_b_pm2.5'), names_to = "channel", values_to = "pm2.5") %>% 
+  select(channel, date_time, pm2.5)
+
+# Find the average between the two channels per the date/time
+pointe_woodworth_pm2.5_avg <- pointe_woodworth_channels_merge %>% 
+  group_by(date_time) %>% 
+  summarize(pm2.5_avg = mean(pm2.5))
+
+### -------Create final average dataframe -------
+# rejoin with temp, humidity data from channel a 
+temp_humidity <- full_join(pointe_woodworth_pm2.5_avg, pointe_woodworth_channel_a_temp_humidity)
+
+# rejoin with pressure data from channel b and add sensor name to a new column in order to identify it 
+pointe_woodworth_sensor_final <- full_join(temp_humidity, pointe_woodworth_channel_b_pressure) %>% 
+  mutate(sensor_name = "pointe_woodworth") %>% 
+  select(sensor_name, date_time, pm2.5_avg, temperature, humidity, pressure)
+
+```
+
+```{r}
+ tacoma_sensors_merged <- do.call("rbind", list(lexington_sensor_final, 
+                                                psu_6th_baker_sensor_final, 
+                                                psu_baltimore_sensor_final,
+                                                psu_central_tacoma_sensor_final,
+                                                psu_jefferson_sensor_final, 
+                                                psu_south_tacoma_sensor_final, 
+                                                psu_titlow_sensor_final,
+                                                pt_woodworth_sensor_final,
+                                                tacoma_alexander_sensor_final))
+```
+
+```{r}
+# export the sensor dataframe to folder
+write_csv(tacoma_sensors_merged, path = "data_complete/tacoma_sensors_merged.csv")
+```
+
+
+
