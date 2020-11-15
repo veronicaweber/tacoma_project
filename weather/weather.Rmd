@@ -1,0 +1,96 @@
+---
+title: "tacoma_weather_2019"
+author: "Veronica Weber"
+date: "11/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+# import the 2019 NCDC weather dataset which contains hourly temp, precipitation, wind and weather type observations from 01/01/2019 - 12/31/2019 collected from the TACOMA NARROWS AIRPORT, WA US (GHCND:USW00094274) weather station
+
+weather_full <- read_csv("weather/tacoma_weather_daily_summary.csv") %>% 
+  clean_names()
+
+# Metadata for the variables 
+#WSF2 - Fastest 2-minute wind speed
+#WSF5 - Fastest 5-second wind speed
+#WT03 - Thunder
+#PRCP - Precipitation
+#WT08 - Smoke or haze
+#WDF2 - Direction of fastest 2-minute wind
+#AWND - Average wind speed
+#WDF5 - Direction of fastest 5-second wind
+#PGTM - Peak gust time
+#WT01 - Fog, ice fog, or freezing fog (may include heavy fog)
+#TMAX - Maximum temperature
+#WT02 - Heavy fog or heaving freezing fog (not always distinguished from fog)
+#TAVG - Average Temperature.
+#TMIN - Minimum temperature
+
+# rename and isolate only the variables we will need: average wind speed, precipitation, max, min and average temp
+
+weather_tidy <- weather_full %>% 
+  select(station,
+         name,
+         date,
+         prcp,
+         awnd,
+         tmin,
+         tmax,
+         tavg) %>% 
+  rename(wind = "awnd")
+
+
+```
+
+```{r}
+# find minimum temperature ranges to determine the first frost (fall) and last frost (spring) which will be used for the LAI analysis 
+
+frost_temps <- weather_tidy %>% 
+  select(date, tmin, tmax) %>% 
+  filter(tmin <= 32 |
+         tmax <=32) 
+# frost temp table shows that the last date of freezing temps was on March 10, 2019, and the first frost date was on November 21, 2019
+# so leaf on date begins 3/11/19 and leaf off date begins 11/21/19
+
+# this data set is missing data from 11/5/19 and 11/8/19, I'll add in the missing rows and then add another column that lists the calendar days which will be used for the LAI leaf on/leaf off formula
+
+weather_tidy_day <- weather_tidy %>% 
+  add_row(date = c("2019-11-05", "2019-11-18")) %>% 
+  arrange(date) %>% 
+  mutate(day_of_year = 1:n()) 
+
+# since data does not include average, i'll just go ahead and create a new column which averages tmin and tmax by day
+tacoma_temp_day <- weather_tidy_day %>% 
+  group_by(date, tmin, tmax) %>% 
+  mutate(t_avg = mean(c(tmin, tmax))) %>% 
+  select(station,
+         name,
+         date,
+         day_of_year,
+         prcp,
+         wind,
+         tmin,
+         tmax,
+         t_avg)
+
+
+
+```
+
+```{r}
+# import other datasets to compare
+mcchord_afb_hourly <- read_csv("weather/tacoma_mcchord_afb_hourly.csv")
+
+narrows_hourly <- read_csv("weather/tacoma_narrows_hourly.csv")
+```
+
