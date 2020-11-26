@@ -134,7 +134,6 @@ write_csv(daily_lai, path = "data_complete/daily_lai.csv")
 ```
 
 ```{r}
-
 ###### Create new datasets dividing days of year into 4 periods to apply daily LAI function ########
 
 #  I'm having a tough time being able to filter out the specific rows/observations for daily LAI (I have to apply daily LAI values to 4 periods throughout the year). Until I find a better way, I will resort to dividing each seasonal period in the year into a seperate dataframe and then will merge all 4 together.
@@ -188,7 +187,10 @@ fall_leafoff <- weather_tidy_day %>%
 # because the day of the year values are stored as integers I'll convert to numeric class so the formula can work properly (not sure of easier way to do this)
 
 fall_numeric <- as.numeric(fall_leafoff$day_of_year)
+```
 
+
+```{r}
 ##### Create Functions for Daily Leaf On and Leaf Off LAI #######
 
 # create function for daily LAI leaf-on period in Spring
@@ -212,14 +214,20 @@ leaf_on_data <- data_frame(daily_lai = leaf_on_function(spring_numeric),
 
 leaf_off_data <- data_frame(daily_lai = leaf_off_function(fall_numeric),
   day_of_year = 325:353)
+```
+
+
+```{r}
+##### Combine all LAI values into a single dataframe by day of the year ######
 
 # Combine all of these into a dataframe
 
-total <- full_join(no_leaves, leaf_on_data) %>%
+all_dates <- full_join(no_leaves, leaf_on_data) %>%
   full_join(all_leaves) %>%
   full_join(leaf_off_data) %>%
   arrange(day_of_year) %>%
-  select(-date)
+  select(-date) %>% 
+  rename(daily_lai_deciduous = daily_lai)
 
 
 # add into daily lai dataframe to combine dates
