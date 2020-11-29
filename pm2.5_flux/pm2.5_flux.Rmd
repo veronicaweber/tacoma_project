@@ -47,29 +47,35 @@ library(janitor)
 library(lubridate)
 library(tidyr)
 
+######  Import Data ########
 
-# import data set
+
+# import data set - this is hourly meterological data recorded from the Tacoma Narrows airport: 
 narrows <- read_csv("raw_data/tacoma_narrows_hourly.csv") %>% 
 clean_names() 
 
+# select only the weather variables that are needed 
 narrows_tidy <- narrows %>% 
   select(date, hourly_dry_bulb_temperature,
          hourly_precipitation, hourly_wind_speed,
          hourly_station_pressure,
          hourly_sea_level_pressure)
 
+# convert the date column into proper date format for r
 narrows_tidier <- as.Date(narrows_tidy$date)
 
+# use the lubridate function in order to parse out the date and time within the column
 narrows_date <- narrows_tidy %>% 
   mutate(
     date_new = lubridate::ymd_hms(date)
   )
-# Found a base r command to extract the year-month-date and hours-minutes-seconds
+
+# Found a base r command to extract the date column into year-month-date and hours-minutes-seconds
 narrows_date$date_ymd <- as.Date(narrows_date$date_new)
 narrows_date$date_hms <- format(narrows_date$date,"%H:%M:%S")
 narrows_date$date_h <- format(narrows_date$date, "%H")
 
-# looks like in the precipitation column, some of the values are listed at "T". According to the Local Climatological Data (LCD) summaries  which provide a synopsis of climatic values for a single weather station over a specific month, a "T" value indicates a "trace" amount of precipitation. I'll replace these as 0 value. 
+# looks like in the precipitation column, some of the values are listed at "T". According to the Local Climatological Data (LCD) summaries which provide a synopsis of climatic values for a single weather station over a specific month, a "T" value indicates a "trace" amount of precipitation. I'll replace these as 0 value. 
 
 narrows_date_tidy <- narrows_date %>% 
   mutate(hourly_precipitation = replace(hourly_precipitation, hourly_precipitation == "T", 0))
@@ -77,15 +83,77 @@ narrows_date_tidy <- narrows_date %>%
 ```
 
 ```{r}
-# create new dataframe extracting just the wind speed and precipitation with hours
+
+###### Find the average hourly windspeed and precipitation ######
+
+# For the flux equation, we will need to determine the average hourly windspeeds and precipitation levels for each hour out of the year
+
+# First, I'll create a new dataframe extracting just the wind speed values:
 
 narrows_windspeed <- narrows_date_tidy %>% 
   select(date, hourly_wind_speed, hourly_precipitation, date_ymd, date_hms, date_h) %>% 
   group_by(date_ymd, date_h) %>% 
-  summarize(mean_hourly_windspeed = mean(hourly_wind_speed),
-            mean_hourly_precip = mean(hourly_precipitation))
+  summarize(mean_hourly_windspeed = mean(hourly_wind_speed, na.rm = TRUE)) 
+
+# Next, I want to find hourly precipitation averages. First I need to find the average of precipitation values when there are NA values present in some of the observations. For whatever reason, when I originally tried writing this code and left in the summarize column to find the means of hourly precipitation with na.rm = True, it returned all NA values. So I'm doing this workaround instead:
+
+narrows_precip_na <- narrows_date_tidy %>% 
+  select(date, hourly_precipitation, date_ymd, date_hms, date_h) %>% 
+  group_by(date_ymd, date_h) %>% 
+  mutate(precip = case_when(is.na(hourly_precipitation) ~ mean(hourly_precipitation, na.rm = TRUE),
+                            TRUE ~ as.numeric(hourly_precipitation))) 
+
+# next I'll create a dataframe that just finds the mean of each hour's precipitation observations without factoring in the NA values 
+
+narrows_precip <- narrows_precip_na %>% 
+  select(precip, date_ymd, date_h) %>% 
+  group_by(date_ymd, date_h) %>% 
+  summarize(precip_final = mean(precip, na.rm = TRUE))
+
+# combine this into the dataframe with windspeed observations and tidy up the names to reflect that they are averages: 
+narrows_precip_ws <- full_join(narrows_windspeed, narrows_precip, by = c("date_ymd", "date_h")) %>% 
+  rename(hourly_prcp_mean = precip_final,
+         hourly_ws_mean = mean_hourly_windspeed)
+
+# because there are some missing values in the hourly precipitation, that are recorded as NaN (not a number), I'll convert these to 0 - ideally I will substitute in the closest values at some other point. 
+
+narrows_hourly_precip_ws_avg <- narrows_precip_ws
+
+narrows_hourly_precip_ws_avg$hourly_prcp_mean[is.nan(narrows_hourly_precip_ws_avg$hourly_prcp_mean)] <- 0
+
+# next, we'lll want to convert windspeed to meters/sec (is originally recorded in miles per hour) and convert precipitation to mm (is currently recorded in inches)
+
+# 1 mph = 0.44704 meters/sec
+# 1 inch = 25.4 mm
+
+narrows_hourly_avg_converted <- narrows_hourly_precip_ws_avg %>% 
+  mutate(hourly_ws_mean_ms = (hourly_ws_mean*0.44704),
+         hourly_prcp_mean_mm = (hourly_prcp_mean*25.4))
+
+# just looking at daily averages
+daily_prcp <- narrows_hourly_precip_ws_avg %>% 
+  select(hourly_prcp_mean, date_ymd, date_h) %>% 
+  group_by(date_ymd) %>% 
+  summarize(daily_prcp = sum(hourly_prcp_mean))
+
+# 
 ```
 
+```{r}
+# I'd like to export this dataframe so it will be easy to work with later
+write_csv(narrows_hourly_precip_ws_avg, path = "data_complete/narrows_hourly_precip_ws_avg.csv")
+```
+
+```{r}
+# I need a clean dataframe that just lists the hours and days of 2019 to merge other variables onto later. Since the windspeed dataframe already has these values, I'll just put them in here:
+
+# create new data frame with hours and months
+annualvalues2019 <- narrows_windspeed %>% 
+  select(date_ymd, date_h)
+
+# export this dataframe so I can use it as a reference for flux values later (displays all hours and dates of 2019)
+write_csv(annualvalues2019, path = "data_complete/annualvalues2019.csv")
+```
 
 ```{r}
 # From the study, "Modeled PM2.5 removal by trees in ten U.S. cities and associated health effects" by Nowak et al, deposition velocity of PM2.5 to trees was estimated from the literature and varied with wind speed. (Beckett et al., 2000b; Freer-Smith et al., 2004; Pullman, 2009). These papers measured deposition velocities to tree leaves from 17 tree species under wind speeds of 1, 3, 6, 8, 9 and 10 m/sec. For each wind speed, the median deposition velocities from the measured deposition velocities was used to estimate the Vd for that wind speed per unit leaf area
@@ -113,4 +181,70 @@ dep_velocity_percent_resuspension <- tibble(wind_speed = c(0,1,2,3,4,5,6,7,8,9,1
                                             max_vd = c(0.000, 0.042, 0.163, 0.285, 0.349, 0.414, 0.478, 1.506, 2.534, 2.534, 7.367, 7.367, 7.367, 7.367),
                                             resuspension_pct = c(0, 0.015, 0.03, 0.045, 0.06, 0.075, 0.09, 0.10, 0.11, 0.12, 0.13, 0.16, 0.20, 0.23))
 ```
+
+```{r}
+###### Don't pay attention to this....this is leftover code from finding hourly precipitation averages#### 
+
+##### not yet ready to delete it yet #######
+
+# narrows_precip_na <- narrows_date_tidy %>% 
+#   select(date, hourly_precipitation, date_ymd, date_hms, date_h) %>% 
+#   group_by(date_ymd, date_h) %>% 
+#   mutate(precip = case_when(is.na(hourly_precipitation) ~ mean(hourly_precipitation, na.rm = TRUE),
+#                             TRUE ~ as.numeric(hourly_precipitation))) 
+# 
+# # next I'll create a dataframe that just finds the mean of each hour's precipitation observations without factoring in the NA values 
+# 
+# narrows_precip <- narrows_precip_na %>% 
+#   select(precip, date_ymd, date_h) %>% 
+#   group_by(date_ymd, date_h) %>% 
+#   summarise_each(funs(mean(precip, na.rm = TRUE))) 
+#       
+# # substitute the NaN (not a number) with value = 0. Though this is far from a perfect solution, it's the best guess to factor in a zero for missing precipitation values
+# 
+# narrows_precip$precip[is.nan(narrows_precip$precip)] <- 0
+# 
+#                 
+# 
+# narrows_precip3 <- narrows_precip %>% 
+#   select(precip2, date_ymd, date_h) %>% 
+#   group_by(date_ymd, date_h) %>% 
+#   summarise_each(funs(mean(precip2, na.rm = TRUE))) 
+#       
+# narrows_rain <- narrows_date_tidy %>% 
+#   select(hourly_precipitation, date_ymd, date_h) %>% 
+#         group_by(date_ymd, date_h) %>% 
+#         mutate_at("hourly_precipitation", function(x) replace(x, is.na(x), mean(x, na.rm = TRUE)) 
+#                   
+# narrows_rain_summary <- narrows_rain %>% 
+#   drop_na() 
+# 
+# narrows_rain_summary2 <- narrows_rain_summary %>% 
+#   group_by(date_ymd, date_h) %>% 
+#   summarize(hourly_precip = mean(hourly_precipitation))
+# 
+# 
+# annualvalues2019_p <- full_join(narrows_precip2, annualvalues2019, by = c("date_ymd", "date_h")) %>% 
+#   replace_na(list(precip_final = 0))
+# 
+# annualvalues2019_p2 <- full_join(narrows_precip3, annualvalues2019, by = c("date_ymd", "date_h")) 
+# 
+# annualvalues2019_p2$precip2[is.nan(annualvalues2019_p2$precip2)] <- 0
+# 
+# # library(zoo)
+# # 
+# # narrows_rain1 <- narrows_date_tidy %>% 
+# #   select(hourly_precipitation, date_ymd, date_h) %>% 
+# #   group_by(date_ymd, date_h) %>% 
+# #   mutate_at("hourly_precipitation", zoo::na.aggregate)
+# # 
+# # narrows_rain2 <- narrows_rain1 %>% 
+# #   drop_na() %>% 
+# #   group_by(date_ymd, date_h) %>% 
+# #   summarise(precip = mean(hourly_precipitation)
+# 
+# annualvalues2019_p <- full_join(narrows_precip2, annualvalues2019, by = c("date_ymd", "date_h")) %>% 
+#   replace_na(list(precip_final = 0))
+```
+
 
