@@ -64,19 +64,10 @@ narrows_date <- narrows_tidy %>%
   mutate(
     date_new = lubridate::ymd_hms(date)
   )
-
-class(narrows_date$date_new)
-
-narrows_class <- as.POSIXct.Date(narrows_date$date_new)
-
-class(narrows_class$date_new)
-
-narrows_parse_date <- narrows_date %>% 
-  mutate(obs_ymd = lubridate::ymd(date_new),
-         obs_hour = lubridate::hms(date_new))
-
+# Found a base r command to extract the year-month-date and hours-minutes-seconds
 narrows_date$date_ymd <- as.Date(narrows_date$date_new)
-narrows_date$date_hms <- format(narrows_date$date,"%H")
+narrows_date$date_hms <- format(narrows_date$date,"%H:%M:%S")
+narrows_date$date_h <- format(narrows_date$date, "%H")
  
 ```
 
