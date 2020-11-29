@@ -68,6 +68,49 @@ narrows_date <- narrows_tidy %>%
 narrows_date$date_ymd <- as.Date(narrows_date$date_new)
 narrows_date$date_hms <- format(narrows_date$date,"%H:%M:%S")
 narrows_date$date_h <- format(narrows_date$date, "%H")
- 
+
+# looks like in the precipitation column, some of the values are listed at "T". According to the Local Climatological Data (LCD) summaries  which provide a synopsis of climatic values for a single weather station over a specific month, a "T" value indicates a "trace" amount of precipitation. I'll replace these as 0 value. 
+
+narrows_date_tidy <- narrows_date %>% 
+  mutate(hourly_precipitation = replace(hourly_precipitation, hourly_precipitation == "T", 0))
+
+```
+
+```{r}
+# create new dataframe extracting just the wind speed and precipitation with hours
+
+narrows_windspeed <- narrows_date_tidy %>% 
+  select(date, hourly_wind_speed, hourly_precipitation, date_ymd, date_hms, date_h) %>% 
+  group_by(date_ymd, date_h) %>% 
+  summarize(mean_hourly_windspeed = mean(hourly_wind_speed),
+            mean_hourly_precip = mean(hourly_precipitation))
+```
+
+
+```{r}
+# From the study, "Modeled PM2.5 removal by trees in ten U.S. cities and associated health effects" by Nowak et al, deposition velocity of PM2.5 to trees was estimated from the literature and varied with wind speed. (Beckett et al., 2000b; Freer-Smith et al., 2004; Pullman, 2009). These papers measured deposition velocities to tree leaves from 17 tree species under wind speeds of 1, 3, 6, 8, 9 and 10 m/sec. For each wind speed, the median deposition velocities from the measured deposition velocities was used to estimate the Vd for that wind speed per unit leaf area
+
+
+# Import the deposition velocity value table which combines deposition velocity measurements in the prior (Beckett et al., 2000b; Freer-Smith et al., 2004; Pullman, 2009) studies: 
+
+ws_dep_velocity <- tibble(wind_speed = c(1,3,6,8.5, 10),
+                        median_v = c(0.030,0.152, 0.197, 0.924, 2.110),
+                      standard_error = c(0.012, 0.133, 0.281, 1.610, 5.257),
+                      max_v = c(0.057, 0.442,0.862, 5.063, 14.542),
+                      min_v = c(0.006, 0.018, 0.029, 0.082, 0.570)
+                                 )
+
+# From the Nowak study
+# Deposition velocity values and percent resuspension rates that averaged deposition velocity (Vd) that were missing values were interpolated between the closest values for windspeeds ranging from 1 - 10 m/sec. For wind speeds above 10 m/sec, the Vd for 10 m/sec was used, for a wind speed of 0, Vd was assumed to be 0.
+
+# Resuspension of PM2.5 from trees was estimated from Pullman (2009) and varied with wind speed. This paper measured percent resuspension of PM2.5 from tree leaves of three tree species under wind speeds of 6.5, 10 and 13 m/sec. The average percent resuspension for the trees species and wind speed was calculated. To estimate the percent resuspension for wind speeds between 0 and 13 m/sec that did not have measured resuspension rates, values were interpolated from the closest measured values (or assumed value at wind speed of 0 m/sec). For wind speeds above 13 m/sec, the percent resuspension rate for 13 m/sec was used
+
+# Import the deposition velocity and resuspension rates table from the Nowak study; 
+
+dep_velocity_percent_resuspension <- tibble(wind_speed = c(0,1,2,3,4,5,6,7,8,9,10,11,12,13),
+                                            avg_vd = c(0.00, 0.03, 0.09, 0.15, 0.17, 0.19, 0.20, 0.56, 0.92, 0.92, 2.11, 2.11, 2.11, 2.11),
+                                            min_vd = c(0.000, 0.006, 0.012, 0.018, 0.022, 0.025, 0.029, 0.056, 0.082, 0.082, 0.570, 0.570, 0.570, 0.570),
+                                            max_vd = c(0.000, 0.042, 0.163, 0.285, 0.349, 0.414, 0.478, 1.506, 2.534, 2.534, 7.367, 7.367, 7.367, 7.367),
+                                            resuspension_pct = c(0, 0.015, 0.03, 0.045, 0.06, 0.075, 0.09, 0.10, 0.11, 0.12, 0.13, 0.16, 0.20, 0.23))
 ```
 
