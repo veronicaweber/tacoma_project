@@ -15,8 +15,30 @@ library(tidyverse)
 library(janitor)
 
 # Import the census block and tree canopy coverage dataset
-census_trees <- read_csv("Tacoma_WA_UTC_Results_tidy.csv") %>% 
+census_trees <- read_csv("raw_data/Tacoma_WA_UTC_Results_tidy.csv") %>% 
   clean_names() %>% 
+
+  # remove the old LAI values (originally was applying the average from Kings County cities) new LAI values reflect the Tacoma Tree Plotter Inventory which shows that Tacoma's concentration is 76% deciduous and 24% evergreen
+select(-(c(tacoma_percent_deciduous, tacoma_percent_evergreen))) %>% 
+  mutate(pct_d = .74,
+         pct_e = .24
+         )
+
+# create dataframe that converts land area and utc to square meters 
+# 1 acre = 4046.86 sq meters 
+utc <- census_trees %>% 
+  select(census_block_groups, land_area_acres, utc_acres, utc_percent, pct_d, pct_e) %>% 
+  group_by(census_block_groups) %>% 
+  mutate(land_area_m2 = (land_area_acres* 4046.86),
+         utc_area_m2 = (utc_acres * 4046.86)) 
+
+utc_tidy <- utc %>% 
+  select(census_block_groups, land_area_m2, utc_percent, pct_d, pct_e) %>% 
+  group_by(census_block_groups) %>% 
+  mutate(utc_land = (land_area_m2 * utc_percent)) %>% 
+  mutate(utc_d = (utc_land * pct_d),
+         utc_e = (utc_land * pct_e)) 
+  
 
 # PlanIT Geo conducted Urban Tree Canopy assessment reports for 11 cities within King County - taking the average percent of total deciduous and evergreen across all 11 cities = %deciduous is 50.63 % and % evergreen is 49.27 %. 
 

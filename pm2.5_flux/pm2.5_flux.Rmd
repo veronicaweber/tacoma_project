@@ -141,7 +141,7 @@ daily_prcp <- narrows_hourly_precip_ws_avg %>%
 
 ```{r}
 # I'd like to export this dataframe so it will be easy to work with later
-write_csv(narrows_hourly_precip_ws_avg, path = "data_complete/narrows_hourly_precip_ws_avg.csv")
+write_csv(narrows_hourly_avg_converted, path = "data_complete/narrows_hourly_avg_converted.csv")
 ```
 
 ```{r}
