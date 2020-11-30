@@ -1,0 +1,97 @@
+---
+title: "flux formula"
+author: "Veronica Weber"
+date: "11/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tibble)
+library(tidyverse)
+
+```
+
+```{r}
+lai <- read_csv("flux_formula/raw_data/daily_lai_deciduous.csv") %>% 
+  select(date, daily_lai_deciduous) 
+
+vd <- read_csv("flux_formula/raw_data/dep_velocity_percent_resuspension.csv") 
+
+ws_prcp <- read_csv("flux_formula/raw_data/narrows_hourly_avg_converted.csv") %>% 
+  rename(date = date_ymd) %>% 
+  select(date, date_h, hourly_ws_mean_ms, hourly_prcp_mean_mm)
+
+dep_vel <- read_csv("flux_formula/raw_data/dep_vel.csv") %>% 
+  rename(date = date_ymd,
+         hour = date_h) %>% 
+  select(date, hour, rounded_ws_ms, rounded_prcp_mm, median_vd, min_vd, max_vd, pct_resuspension )
+```
+
+```{r}
+
+```
+
+
+
+```{r}
+# combine daily lai values with the median deposition velocity values based on windspeeds ranging from 0 - 14 meters/sec
+
+lai_hourly <- full_join(dep_vel, lai, by = "date") %>% 
+  mutate(daily_lai_evergreen = 4.9)
+
+# Find the median deposition velocity based on LAI. First, import the data, and then grouping by date and hour, find the hourly deposition velocity by multiplying the median deposition velocity based on windspeed times the lai. Then, to account for the percent of PM2.5 that is resuspended back into the atmosphere (also based on windspeeds), multiply the depostion velocity times the percent resuspended, and subtract this from the total flux of both deciduous and evergreen trees
+
+dep_vel_flux_by_lai_dry <- lai_hourly %>% 
+  select(date, hour, rounded_ws_ms, median_vd, 
+         min_vd, max_vd, pct_resuspension, daily_lai_deciduous, 
+         daily_lai_evergreen) %>% 
+  group_by(date, hour) %>% 
+  mutate(vd_f_d= (median_vd * daily_lai_deciduous),
+         vd_f_e = (median_vd * daily_lai_evergreen)) %>% 
+  mutate(pct_f_d = (vd_f_d * pct_resuspension),
+         pct_f_e = (vd_f_e * pct_resuspension)) %>% 
+  mutate(total_f_d = (vd_f_d - pct_f_d),
+         total_f_e = (vd_f_e - pct_f_e))
+
+
+# 
+# flux <- ws_prcp %>% 
+#   group_by(hourly_ws_mean_ms) %>% 
+#   mutate(windspeed_vd = if(hourly_ws_mean_ms <=2, >=1))
+```
+
+```{r}
+library(lubridate)
+
+# mess with the sensor data
+
+sensors <- read_csv("flux_formula/raw_data/tacoma_sensors_merged.csv") 
+
+# tidy up the sensors dataframe to parse out date and time
+# use the lubridate function in order to parse out the date and time within the column
+sensors_date <- sensors %>% 
+  mutate(
+    date_new = lubridate::ymd_hms(date_time)
+  )
+
+# Found a base r command to extract the date column into year-month-date and hours-minutes-seconds
+sensors_date$date_ymd <- as.Date(sensors_date$date_new)
+sensors_date$date_hms <- format(sensors_date$date_new,"%H:%M:%S")
+sensors_date$date_h <- format(sensors_date$date_new, "%H")
+# convert the hour column to numeric because is classified as a character
+sensors_date$hour <- as.numeric(sensors_date$date_h)
+
+# make a tidier dataframe only extracting variables we need for flux calculations, making sure to rename columns so that these can join correctly to the flux dataframe
+sensors_date_tidy <- sensors_date %>% 
+  select(date_ymd, hour, sensor_name, pm2.5_avg) %>% 
+  rename(date = date_ymd) 
+  
+# combine with lai flux 
+sensor_flux <- full_join(sensors_date_hour, dep_vel_flux_by_lai_dry, by = c("date", "hour"))
+
+```
+
