@@ -16,25 +16,20 @@ library(tidyverse)
 ```
 
 ```{r}
-lai <- read_csv("flux_formula/raw_data/daily_lai_deciduous.csv") %>% 
+lai <- read_csv("raw_data/daily_lai_deciduous.csv") %>% 
   select(date, daily_lai_deciduous) 
 
-vd <- read_csv("flux_formula/raw_data/dep_velocity_percent_resuspension.csv") 
+vd <- read_csv("raw_data/dep_velocity_percent_resuspension.csv") 
 
-ws_prcp <- read_csv("flux_formula/raw_data/narrows_hourly_avg_converted.csv") %>% 
+ws_prcp <- read_csv("raw_data/narrows_hourly_avg_converted.csv") %>% 
   rename(date = date_ymd) %>% 
   select(date, date_h, hourly_ws_mean_ms, hourly_prcp_mean_mm)
 
-dep_vel <- read_csv("flux_formula/raw_data/dep_vel.csv") %>% 
+dep_vel <- read_csv("raw_data/dep_vel.csv") %>% 
   rename(date = date_ymd,
          hour = date_h) %>% 
   select(date, hour, rounded_ws_ms, rounded_prcp_mm, median_vd, min_vd, max_vd, pct_resuspension )
 ```
-
-```{r}
-
-```
-
 
 
 ```{r}
@@ -54,8 +49,8 @@ dep_vel_flux_by_lai_dry <- lai_hourly %>%
          vd_f_e = (median_vd * daily_lai_evergreen)) %>% 
   mutate(pct_f_d = (vd_f_d * pct_resuspension),
          pct_f_e = (vd_f_e * pct_resuspension)) %>% 
-  mutate(total_f_d = (vd_f_d - pct_f_d),
-         total_f_e = (vd_f_e - pct_f_e))
+  mutate(flux_d = (vd_f_d - pct_f_d),
+         flux_e = (vd_f_e - pct_f_e))
 
 
 # 
@@ -69,19 +64,22 @@ library(lubridate)
 
 # mess with the sensor data
 
-sensors <- read_csv("flux_formula/raw_data/tacoma_sensors_merged.csv") 
+sensors <- read_csv("raw_data/tacoma_sensors_merged.csv") 
 
 # tidy up the sensors dataframe to parse out date and time
 # use the lubridate function in order to parse out the date and time within the column
 sensors_date <- sensors %>% 
   mutate(
     date_new = lubridate::ymd_hms(date_time)
-  )
+  ) %>% 
+  # remove the PSU Central Tacoma sensor as that only has data from 9/12/19 - 12/31/19
+ filter(sensor_name!="psu_central_tacoma")
 
 # Found a base r command to extract the date column into year-month-date and hours-minutes-seconds
 sensors_date$date_ymd <- as.Date(sensors_date$date_new)
 sensors_date$date_hms <- format(sensors_date$date_new,"%H:%M:%S")
 sensors_date$date_h <- format(sensors_date$date_new, "%H")
+sensors_date$date_m <- format(sensors_date$date_new, "%m")
 # convert the hour column to numeric because is classified as a character
 sensors_date$hour <- as.numeric(sensors_date$date_h)
 
@@ -89,9 +87,67 @@ sensors_date$hour <- as.numeric(sensors_date$date_h)
 sensors_date_tidy <- sensors_date %>% 
   select(date_ymd, hour, sensor_name, pm2.5_avg) %>% 
   rename(date = date_ymd) 
+   
   
 # combine with lai flux 
-sensor_flux <- full_join(sensors_date_hour, dep_vel_flux_by_lai_dry, by = c("date", "hour"))
+sensor_flux <- full_join(sensors_date_tidy, 
+                         dep_vel_flux_by_lai_dry, 
+                         by = c("date", "hour")) %>% 
+  group_by(date, hour, sensor_name) %>% 
+  mutate(hrly_flux_d = (flux_d * pm2.5_avg),
+         hrly_flux_e = (flux_e * pm2.5_avg))
+  
+total_annual_flux <- sensor_flux %>% 
+  ungroup(date, hour, sensor_name) %>% 
+   select(hrly_flux_d, hrly_flux_e) %>% 
+  summarize(total_flux_d = sum(hrly_flux_d, na.rm = TRUE),
+            total_flux_e = sum(hrly_flux_e, na.rm = TRUE))
 
+# Find total annual flux removal based on sensor location
+total_annual_flux_sensors <- sensor_flux %>% 
+  ungroup(date, hour, sensor_name) %>% 
+  group_by(sensor_name) %>% 
+  summarize(total_flux_d = sum(hrly_flux_d, na.rm = TRUE),
+            total_flux_e = sum(hrly_flux_e, na.rm = TRUE))
+
+
+# Find averages of sensors - by month and by year
+sensors_month <- sensors_date %>% 
+ select(date_ymd, date_m,sensor_name, pm2.5_avg) %>% 
+  rename(date = date_ymd, 
+         month = date_m)
+
+# Find averages of pm2.5 by month and by station  
+pm2.5_avg_by_month <- sensors_month %>% 
+  group_by(month) %>% 
+  summarize(month_avg = mean(pm2.5_avg, na.rm = TRUE))
+
+pm2.5_avg_by_month_sensors <- sensors_month %>% 
+  group_by(month, sensor_name) %>% 
+  summarize(month_avg = mean(pm2.5_avg, na.rm = TRUE)) 
+
+pm2.5_avg_annual_sensor <- sensors_month %>% 
+  group_by(sensor_name) %>% 
+  summarize(annual_avg = mean(pm2.5_avg, na.rm = TRUE))
+
+
+
+library(ggplot2)
+library(ggridges)
+
+ggplot(pm2.5_avg_by_month_sensors, aes(x = month, y = month_avg)) +
+  geom_bar(aes(fill = sensor_name),
+           stat = "identity",
+           color = "black",
+           position = position_dodge()) +
+  scale_fill_brewer(palette = "BuPu") +
+  labs(x = "Months",
+       y = "Avg PM2.5 Concentrations (Micrometers)",
+       title = "PM2.5 Concentrations Recorded by Purple Air Sensors",
+       fill = "Purple Air Sensor")
+  
+
+
+  
 ```
 

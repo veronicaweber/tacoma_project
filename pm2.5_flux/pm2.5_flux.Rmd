@@ -128,7 +128,10 @@ narrows_hourly_precip_ws_avg$hourly_prcp_mean[is.nan(narrows_hourly_precip_ws_av
 
 narrows_hourly_avg_converted <- narrows_hourly_precip_ws_avg %>% 
   mutate(hourly_ws_mean_ms = (hourly_ws_mean*0.44704),
-         hourly_prcp_mean_mm = (hourly_prcp_mean*25.4))
+         hourly_prcp_mean_mm = (hourly_prcp_mean*25.4)) %>% 
+  # Because the given deposition velocities per meter/sec of given windspeed is only within 1 meter increments, I'm going to round the values to closest 1 meter using round 
+  mutate(rounded_ws_ms =(round(hourly_ws_mean_ms,0))) %>% 
+  mutate(rounded_prcp_mm = (round(hourly_prcp_mean_mm,2)))
 
 # just looking at daily averages
 daily_prcp <- narrows_hourly_precip_ws_avg %>% 
@@ -136,7 +139,7 @@ daily_prcp <- narrows_hourly_precip_ws_avg %>%
   group_by(date_ymd) %>% 
   summarize(daily_prcp = sum(hourly_prcp_mean))
 
-# 
+
 ```
 
 ```{r}
@@ -180,7 +183,19 @@ dep_velocity_percent_resuspension <- tibble(wind_speed = c(0,1,2,3,4,5,6,7,8,9,1
                                             min_vd = c(0.000, 0.006, 0.012, 0.018, 0.022, 0.025, 0.029, 0.056, 0.082, 0.082, 0.570, 0.570, 0.570, 0.570),
                                             max_vd = c(0.000, 0.042, 0.163, 0.285, 0.349, 0.414, 0.478, 1.506, 2.534, 2.534, 7.367, 7.367, 7.367, 7.367),
                                             resuspension_pct = c(0, 0.015, 0.03, 0.045, 0.06, 0.075, 0.09, 0.10, 0.11, 0.12, 0.13, 0.16, 0.20, 0.23))
+
+dep_velocity <- read_csv("data_complete/narrows_hourly_avg_converted.csv")
+
+write_csv(dep_velocity_percent_resuspension, path = "data_complete/dep_velocity_percent_resuspension.csv")
 ```
+
+
+```{r}
+# Hourly flux values to trees in the city (Eq. (1); mg m2 h1) were multiplied by total leaf surface area (m2) with hourly Vd based on local wind speed (Table 3). Flux values were accumulated hourly with a percent of the total accumulated PM2.5 over the current and previous hours resuspended back to the atmosphere hourly based on local wind speed.
+
+# During precipitation events, the accumulated PM2.5 was assumed to be washed off to the ground surface depending upon the magnitude of the precipitation event (Pe in mm). As leaves capture about 0.2 mm of precipitation (Wang et al., 2008) before runoff from the leaf, the total precipitation storage capacity (Ps in mm) of the canopy was calculated as 0.2  LAI. If Pe was greater than Ps, then all particles were assumed to be removed from the leaves and resuspension dropped to zero. When the Pe was less than Ps, no particles were removed from the leaves as there was no runoff from the leaves. After the rain stopped, PM2.5 began accumulating on and resuspending from leaves again.
+```
+
 
 ```{r}
 ###### Don't pay attention to this....this is leftover code from finding hourly precipitation averages#### 

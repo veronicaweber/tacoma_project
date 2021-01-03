@@ -78,10 +78,11 @@ tree_species_tidy <- tree_species %>%
 percent_evergreen_deciduous <- tree_species_tidy %>% 
   group_by(leaf_type) %>% 
   summarise(tree_type_count = n()) %>% 
-  mutate(percent = tree_type_count / sum(tree_type_count))
+  mutate(percent = tree_type_count / sum(tree_type_count)) %>% 
+  mutate(percent_rounded = round(percent, 2))
 # there are 12,314 deciduous trees and 3,986 evergreen trees in this inventory
 
-# This inventory suggests that roughly 75% of trees in Tacoma are deciduous and 24% are evergreen
+# This inventory suggests that roughly 76% of trees in Tacoma are deciduous and 24% are evergreen
 
 ```
 
