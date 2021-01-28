@@ -1,0 +1,159 @@
+---
+title: "ACS data retrieval"
+author: "Joanne Pham"
+date: "11/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Three packages needed to retrieve ACS data and put into shapefile format. 
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(sf)
+```
+
+Look at all variables in acs-5yr survey to confirm with notes variables on 'Indicator List.' 
+```{r}
+v19 <- load_variables(2019,
+                      "acs5",
+                      cache = TRUE)
+```
+
+
+Set up tibble with variable values, geoid, and coordinates: 
+
+# RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS 
+
+Subtract the number of people above 200% poverty level from the total number of people recorded in the survey to get the number of people below the 200% poverty level. 
+```{r}
+# Estimate!!Total:!!2.00 and over
+rich <- get_acs(geography = "block group",
+                    variables = "C17002_008", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+rich
+```
+
+
+```{r}
+# Estimate!!Total:
+tot_pov <- get_acs(geography = "block group",
+                    variables = "B03002_001", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+tot_pov
+```
+
+# HISPANIC OR LATINO ORIGIN BY RACE
+Subtract the number of only white people from the total number of people who completed the survey to get the total number of non-white people. 
+```{r}
+# Estimate!!Total:!!Hispanic or Latino:!!White alone
+white <- get_acs(geography = "block group",
+                    variables = "B03002_003", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+white
+```
+
+
+```{r}
+# Estimate!!Total:
+tot_race <- get_acs(geography = "block group",
+                    variables = "B03002_003", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+tot_race
+```
+
+# HOUSEHOLD LANGUAGE BY HOUSEHOLD LIMITED ENGLISH SPEAKING STATUS
+Subtract the number of only white people from the total number of people who completed the survey to get the total number of non-white people. 
+```{r}
+# Estimate!!Total:!!English only
+english <- get_acs(geography = "block group",
+                    variables = "C16002_002", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+english
+```
+
+
+```{r}
+# Estimate!!Total:
+tot_lang <- get_acs(geography = "block group",
+                    variables = "C16002_001", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+tot_lang
+```
+
+# EMPLOYMENT STATUS FOR THE POPULATION 16 YEARS AND OLDER
+Estimate already found in the census data.
+```{r}
+# Estimate!!Total:!!Not in labor force	
+unemployment <- get_acs(geography = "block group",
+                    variables = "B23025_007", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+unemployment
+```
+
+# SEX BY AGE
+Estimate already found in the census data.
+```{r}
+# Estimate!!Total:
+pop_density <- get_acs(geography = "block group",
+                    variables = "B01001_001", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+pop_density
+```
+
+```{r}
+# Estimate!!Total:
+pop_density <- get_acs(geography = "block group",
+                    variables = "B27010_001", 
+                    state = "WA",
+                    county = "Pierce",
+                    year = 2019,
+                    geometry = TRUE) %>% 
+        select(-c(moe, variable))
+
+pop_density
+```
+
