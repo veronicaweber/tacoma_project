@@ -1,0 +1,164 @@
+---
+title: "ACS data retrieval"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      results = 'hide',
+                      warning = FALSE)
+options(tinytex.verbose = TRUE)
+```
+
+A connection needs to be made in order to interface with the ACS APIs. Using the API key, which is unique for each user, the data can be converted into data frames. A tutorial of tidycensus can be found here: [Basic usage of tidycensus](https://walker-data.com/tidycensus/articles/basic-usage.html). Note that sometimes the connection can be lost if there are large pauses between steps and errors will appear, even if there is no actual error. Rerun prior processes just to be safe.  
+
+```{r}
+# use these packages
+
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(knitr)
+```
+
+1. Request the key to interface with ACS, which can be found on the [key signup](https://api.census.gov/data/key_signup.html) website. 
+ 
+```{r}
+# Once the key is saved, don't need to use it again for any following applications involving ACS APIs. 
+#If you do, you need to overwrite, like the following.
+
+census_api_key("5c21716c9afca860e0cbe0af36ce624318258e30",
+               install = TRUE,
+               overwrite = TRUE)
+```
+
+2. After interfacing,look at all variables in ACS-5yr survey to confirm the name of the variables of interest on the list. 
+
+```{r}
+# variable list from from the ACS-5yr (2015-2019) estimates
+# use the filter to narrow down variables of interest. 
+v19 <- load_variables(2019,
+                      "acs5",
+                      cache = TRUE)
+
+view(v19)
+```
+
+3. Set up variables list. Go on the [census website](https://data.census.gov/cedsci/) if you want to confirm the correct names. Each table has a TableID that corresponds to the variable name. 
+
+```{r}
+# 4 indicators (income, race, employment, and age) and the total population variable
+# since the tables did not have the exact values we were interested in, additional variables were selected to calculate them (ex: total population - population with income above 200% = population with income below 200%)
+# total population variables represented by B01001_001: total population estimate from the 'sex by age' table
+
+vars <- c(
+          "C17002_008", ## RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS: #               Estimate!!Total:!!2.00 and over
+          "C17002_001", # Estimate!!Total:
+          "B03002_003", ## HISPANIC OR LATINO ORIGIN BY RACE: # Estimate!!Total:!!Hispanic or Latino:!!White alone
+          "B03002_001", # Estimate!!Total:
+          "B23025_007", ## EMPLOYMENT STATUS FOR THE POPULATION 16 YEARS AND OLDER: # Estimate!!Total:!!Not in labor force
+          "B23025_001", # Estimate!!Total:
+          "B01001_001", ## SEX BY AGE: # Estimate!!Total:
+          "B01001_020", # Estimate!!Total:!!Male:!!65 and 66 years
+          "B01001_021", # Estimate!!Total:!!Male:!!67 to 69 years
+          "B01001_022", # Estimate!!Total:!!Male:!!70 to 74 years
+          "B01001_023", # Estimate!!Total:!!Male:!!75 to 79 years
+          "B01001_024", # Estimate!!Total:!!Male:!!80 to 84 years
+          "B01001_025", # Estimate!!Total:!!Male:!!85 years and over
+          "B01001_044", # Same as above, except female
+          "B01001_045",
+          "B01001_046",
+          "B01001_047",
+          "B01001_048",
+          "B01001_049",
+          "B01001_003", # Estimate!!Total:!!Male:!!Under 5 years
+          "B01001_004", # Estimate!!Total:!!Male:!!5 to 9 years
+          "B01001_005", # Estimate!!Total:!!Male:!!10 to 14 years
+          "B01001_006", # Estimate!!Total:!!Male:!!15 to 17 years
+          "B01001_027", # Same as avove, except female
+          "B01001_028",
+          "B01001_029",
+          "B01001_030")
+```
+
+4. Connect to the ACS website with the necessary arguments. 
+
+```{r} 
+# note that for the resolution cannot get smaller than the county level, so narrowing down estimates for the city of Tacoma is reserved for the ArcGIS model
+
+acs_connection <- get_acs(geography = "block group", # census block group
+                              variables = vars, # chosen variable values
+                              state = "WA", # Washington
+                              county = "Pierce", # Pierce county
+                              year = 2019, # ACS 5-yr (2015-2019) estimates
+                              geometry = TRUE) # include polygons
+```
+
+5. Specify format of tibble for the final results. 
+
+```{r}
+acs_format <- acs_connection %>% 
+   select(GEOID, NAME, variable, estimate, geometry) %>% # without selection, it will include measure of error, which is not necessary
+                              spread(variable, estimate) %>% # formats a pair of key:value columns into a set of tidy columns 
+                              rowwise()  # computes data a row at a time
+```
+
+6. Select the data tables of interest using the variables specified earlier. Transform through operations to get required final results.
+
+```{r}
+acs_vars <- acs_format %>% 
+     mutate(pct_poverty = (C17002_001 - C17002_008) / C17002_001 * 100, # percent of population with ratio of income to poverty level in the past 2 months below 2.00
+            pct_poc = (B03002_001 - B03002_003) / B03002_001 * 100, # percent of population with race other than white
+            pct_unemployed = B23025_007 / B23025_001 * 100, # percent of population not in employment 16 years and older
+            dep_ratio = sum(B01001_020, B01001_021, B01001_022, B01001_023, B01001_024, B01001_025, # dependency ratio: age-population ratio of the population above 65 and under 18 years older to the working-age population
+                            B01001_044, B01001_045, B01001_046, B01001_047, B01001_048, B01001_049,
+                            B01001_003, B01001_004, B01001_005, B01001_006, B01001_027, B01001_028,
+                            B01001_029, B01001_030) / (B01001_001 - sum(B01001_020, B01001_021,
+                                                                        B01001_022, B01001_023,
+                                                                        B01001_024, B01001_025,
+                                                                        B01001_044, B01001_045,
+                                                                        B01001_046, B01001_047,
+                                                                        B01001_048, B01001_049,
+                                                                        B01001_003, B01001_004,
+                                                                        B01001_005, B01001_006,
+                                                                        B01001_027, B01001_028,
+                                                                        B01001_029, B01001_030)) * 100,
+
+            tot_pop = B01001_001) # total population
+    
+```
+
+7. Set up format for final data table. 
+
+```{r}
+acs_final <- acs_vars %>% 
+    select(GEOID,
+           NAME,
+           pct_poverty, # income indicator
+           pct_poc, # race indicator
+           pct_unemployed, # employment indicator
+           dep_ratio, # age indicator
+           tot_pop, # total population
+           geometry)
+```
+
+8. Turn into shapefile, which can be imported into the Environmental Equity Index model.  
+
+```{r}
+# final check to make sure tibble fits expectations
+
+head(acs_final) 
+
+# naming the shapefile 
+
+shp = "Pierce_county_5yr_acs_2019.shp"
+
+st_write(acs_final, shp,
+         append = FALSE)
+
+```
+
+
